@@ -5,6 +5,7 @@ import random
 import logging
 import numpy as np
 from rich import print
+from sklearn.decomposition import PCA
 
 def update_memory_vanilla(args, task_id, memory):
     
@@ -82,8 +83,17 @@ def update_memory_ours(args, task_id, memory, model, train_loader):
                 
     for cls in current_task:
         cls_latents = np.array(current_latent_set[cls]['latent']) # (n, 256*256)
-        mean_cls_latents = np.mean(cls_latents, axis=0) # (256*256,)
-        distances = np.linalg.norm(cls_latents - mean_cls_latents, axis=1)  # (n,)
+        # mean_cls_latents = np.mean(cls_latents, axis=0) # (256*256,)
+        # distances = np.linalg.norm(cls_latents - mean_cls_latents, axis=1)  # (n,)
+        
+        pca = PCA(n_components=50)  # 选择前50个主成分
+        reduced_latents = pca.fit_transform(cls_latents)  # 降维
+        mean_reduced_latents = np.mean(reduced_latents, axis=0)
+        covariance_matrix = np.cov(reduced_latents, rowvar=False)
+        covariance_inv = np.linalg.inv(covariance_matrix)
+        diff = reduced_latents - mean_reduced_latents
+        distances = np.sqrt(np.sum(np.dot(diff, covariance_inv) * diff, axis=1))
+        
         sorted_indices = np.argsort(distances)[::-1]  # 降序排序
         sorted_indices_choose = np.array(sorted_indices[:memory_per_current_class])
         for idx in sorted_indices_choose:
